@@ -1,0 +1,5 @@
+.gdbinit
+gradelib.pyc
+jos.out
+obj/
+qemu.log
