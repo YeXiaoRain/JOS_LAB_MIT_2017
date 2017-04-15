@@ -84,6 +84,8 @@ trap_init(void)
   extern void ENTRY_ALIGN  ();/* 17 aligment check*/
   extern void ENTRY_MCHK   ();/* 18 machine check*/
   extern void ENTRY_SIMDERR();/* 19 SIMD floating point error*/
+  
+  extern void ENTRY_SYSCALL();/* 48 system call*/
 
   SETGATE(idt[T_DIVIDE ],0,GD_KT,ENTRY_DIVIDE ,0);
   SETGATE(idt[T_DEBUG  ],0,GD_KT,ENTRY_DEBUG  ,0);
@@ -105,6 +107,8 @@ trap_init(void)
   SETGATE(idt[T_ALIGN  ],0,GD_KT,ENTRY_ALIGN  ,0);
   SETGATE(idt[T_MCHK   ],0,GD_KT,ENTRY_MCHK   ,0);
   SETGATE(idt[T_SIMDERR],0,GD_KT,ENTRY_SIMDERR,0);
+  
+  SETGATE(idt[T_SYSCALL],0,GD_KT,ENTRY_SYSCALL,3);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -183,6 +187,33 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+  switch(tf->tf_trapno){
+    case T_DIVIDE:
+      cprintf("trap T_DIVIDE:divide error\n");
+      break ;
+    case T_BRKPT:
+      cprintf("trap T_BRKPT:breakpoint\n");
+      monitor(tf);
+      return ;
+    case T_GPFLT:
+      cprintf("trap T_DIVIDE:general protection fault\n");
+      break ;
+    case T_PGFLT:
+      page_fault_handler(tf);
+      break;
+    case T_SYSCALL:
+      tf->tf_regs.reg_eax = syscall(
+          tf->tf_regs.reg_eax, 
+          tf->tf_regs.reg_edx,
+          tf->tf_regs.reg_ecx,
+          tf->tf_regs.reg_ebx,
+          tf->tf_regs.reg_edi,
+          tf->tf_regs.reg_esi);
+      return ;
+    default:
+      cprintf("trap no=%d\n",tf->tf_trapno);
+      break ;
+  }
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -242,8 +273,8 @@ page_fault_handler(struct Trapframe *tf)
 	fault_va = rcr2();
 
 	// Handle kernel-mode page faults.
-
-	// LAB 3: Your code here.
+  if ((tf->tf_cs & 0x3) == 0)
+    panic("kernel page fault");
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
