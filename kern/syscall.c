@@ -82,9 +82,14 @@ sys_exofork(void)
 	// status is set to ENV_NOT_RUNNABLE, and the register set is copied
 	// from the current environment -- but tweaked so sys_exofork
 	// will appear to return 0.
-
-	// LAB 4: Your code here.
-	panic("sys_exofork not implemented");
+  struct Env *e;
+  int r;
+  if((r = env_alloc(&e, curenv->env_id)) < 0)
+    return r;
+  e->env_tf = curenv->env_tf;
+  e->env_status = ENV_NOT_RUNNABLE;
+  e->env_tf.tf_regs.reg_eax = 0;
+  return e->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -102,9 +107,14 @@ sys_env_set_status(envid_t envid, int status)
 	// You should set envid2env's third argument to 1, which will
 	// check whether the current environment has permission to set
 	// envid's status.
-
-	// LAB 4: Your code here.
-	panic("sys_env_set_status not implemented");
+  struct Env *e;
+  int r;
+  if ((r = envid2env(envid, &e, 1)) < 0)
+    return r;
+  if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE)
+    return -E_INVAL;
+  e->env_status = status;
+  return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -147,9 +157,20 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   parameters for correctness.
 	//   If page_insert() fails, remember to free the page you
 	//   allocated!
-
-	// LAB 4: Your code here.
-	panic("sys_page_alloc not implemented");
+  struct Env *e;
+  struct PageInfo *p;
+  int r;
+  if( (uintptr_t)va >= UTOP || PGOFF(va) || (perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P) || (perm & (~PTE_SYSCALL)) )
+    return -E_INVAL;
+  if((r = envid2env(envid, &e, 1)) < 0 )
+    return r;
+  if(!(p = page_alloc(ALLOC_ZERO)))
+    return -E_NO_MEM;
+  if((r = page_insert(e->env_pgdir, p, va, perm)) < 0){
+    page_free(p);
+    return r;
+  }
+  return 0;
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
@@ -178,9 +199,24 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	//   parameters for correctness.
 	//   Use the third argument to page_lookup() to
 	//   check the current permissions on the page.
-
-	// LAB 4: Your code here.
-	panic("sys_page_map not implemented");
+  struct Env *srcenv;
+  struct Env *dstenv;
+  struct PageInfo *p;
+  pte_t* pte;
+  int r;
+  if ((uintptr_t)srcva >= UTOP || PGOFF(srcva) ||
+      (uintptr_t)dstva >= UTOP || PGOFF(dstva) ||
+      (perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P) || (perm & (~PTE_SYSCALL)))
+    return -E_INVAL;
+  if((r = envid2env(srcenvid, &srcenv, 1)) < 0)
+    return r;
+  if((r = envid2env(dstenvid, &dstenv, 1)) < 0)
+    return r;
+  if(!(p = page_lookup(srcenv->env_pgdir, srcva, &pte)))
+    return -E_INVAL;
+  if ((perm & PTE_W) && !(*pte & PTE_W))
+    return -E_INVAL;
+  return page_insert(dstenv->env_pgdir, p, dstva, perm);
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -194,9 +230,14 @@ static int
 sys_page_unmap(envid_t envid, void *va)
 {
 	// Hint: This function is a wrapper around page_remove().
-
-	// LAB 4: Your code here.
-	panic("sys_page_unmap not implemented");
+  struct Env *e;
+  int r;
+  if (((uintptr_t)va) >= UTOP || PGOFF(va))
+    return -E_INVAL;
+  if ((r = envid2env(envid, &e, 1)) < 0)
+    return r;
+  page_remove(e->env_pgdir, va);
+  return 0;
 }
 
 // Try to send 'value' to the target env 'envid'.
@@ -279,6 +320,20 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return sys_getenvid();
     case SYS_env_destroy:
       return sys_env_destroy((envid_t) a1);
+    case SYS_yield:
+      sys_yield();
+      return 0;// infact not return
+    case SYS_exofork:
+      return sys_exofork();
+    case SYS_env_set_status:
+      return sys_env_set_status((envid_t)a1, (int)a2);
+    case SYS_page_alloc:
+      return sys_page_alloc((envid_t)a1, (void *)a2, (int)a3);
+    case SYS_page_map:
+      return sys_page_map((envid_t)a1, (void *)a2, (envid_t)a3, (void *)a4, (int)a5);
+      break;
+    case SYS_page_unmap:
+      return sys_page_unmap((envid_t)a1, (void *)a2);
     case NSYSCALLS:
     default:
       return -E_INVAL;
