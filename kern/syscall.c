@@ -123,10 +123,17 @@ sys_env_set_status(envid_t envid, int status)
 static int
 sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 {
-	// LAB 5: Your code here.
 	// Remember to check whether the user has supplied us with a good
 	// address!
-	panic("sys_env_set_trapframe not implemented");
+  struct Env *e;
+  int r;
+  if ((r = envid2env(envid, &e, 1)) < 0)
+    return r;
+  user_mem_assert(curenv, tf, sizeof(struct Trapframe), 0);
+  e->env_tf = *tf;
+  e->env_tf.tf_cs |= 3;
+  e->env_tf.tf_eflags |= FL_IF;
+  return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -310,7 +317,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
     struct PageInfo *pg;
     if(!(pg = page_lookup(curenv->env_pgdir, srcva, &pte)))
       return -E_INVAL;
-    if((*pte & perm) != perm)
+    if((perm & PTE_W) && !(*pte & PTE_W))
       return -E_INVAL;
     if(e->env_ipc_dstva < (void *)UTOP){
       if((r = page_insert(e->env_pgdir, pg, e->env_ipc_dstva, perm)) < 0)
@@ -373,6 +380,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return sys_exofork();
     case SYS_env_set_status:
       return sys_env_set_status((envid_t)a1, (int)a2);
+    case SYS_env_set_trapframe:
+      return sys_env_set_trapframe((envid_t)a1, (struct Trapframe*)a2);
     case SYS_page_alloc:
       return sys_page_alloc((envid_t)a1, (void *)a2, (int)a3);
     case SYS_page_map:
