@@ -296,6 +296,7 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+    time_tick();
     lapic_eoi();
     sched_yield();
 		return;
