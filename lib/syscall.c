@@ -128,3 +128,9 @@ sys_net_try_send(char *data, int len)
 {
   return syscall(SYS_net_try_send, 1, (uint32_t)data, (uint32_t)len, 0, 0, 0);
 }
+
+int
+sys_net_receive(char *buf)
+{
+  return syscall(SYS_net_receive, 0, (uint32_t)buf, 0, 0, 0, 0);
+}

@@ -28,6 +28,8 @@ enum {
 
   // E1000 error codes
   E_TX_FULL,   // Transfer queue is full
+  E_RX_EMPTY,   // Receive queue is empty
+  E_RX_LONG,   // Receive data is too long
 
 	MAXERROR
 };
