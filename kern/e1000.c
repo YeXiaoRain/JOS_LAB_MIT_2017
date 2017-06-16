@@ -34,3 +34,24 @@ int e1000_attach(struct pci_func *f) {
 
   return 0;
 }
+
+int
+e1000_transmit(char *data, int len){
+  if(data == NULL || len < 0 || len > TX_PKT_SIZE)
+    return -E_INVAL;
+
+  uint32_t tdt = e1000[E1000_TDT >> 2];
+  if(!(tx_queue[tdt].upper.data & E1000_TXD_STAT_DD))
+    return -E_TX_FULL;
+
+  memset(tx_pkt_bufs[tdt], 0 , sizeof(tx_pkt_bufs[tdt]));
+  memmove(tx_pkt_bufs[tdt], data, len);
+  tx_queue[tdt].lower.flags.length  = len;
+  tx_queue[tdt].lower.data         |= E1000_TXD_CMD_RS;
+  tx_queue[tdt].lower.data         |= E1000_TXD_CMD_EOP;
+  tx_queue[tdt].upper.data         &= ~E1000_TXD_STAT_DD;
+
+  e1000[E1000_TDT >> 2] = (tdt + 1) % E1000_NTX;
+
+  return 0;
+}

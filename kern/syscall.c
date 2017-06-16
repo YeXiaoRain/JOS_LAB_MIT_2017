@@ -12,6 +12,7 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/time.h>
+#include <kern/e1000.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -365,6 +366,16 @@ sys_time_msec(void)
   return time_msec();
 }
 
+// Returns 0 on success, < 0 on error.
+// Errors are:
+//   -E_INVAL
+//   -E_TX_FULL
+static int
+sys_net_try_send(char *data, int len) {
+  user_mem_assert(curenv, data, len, PTE_U);   // check permission
+  return e1000_transmit(data, len);
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -405,6 +416,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
       return sys_ipc_recv((void *)a1);
     case SYS_time_msec:
       return sys_time_msec();
+    case SYS_net_try_send:
+      return sys_net_try_send((char *) a1, (int) a2);
     case NSYSCALLS:
     default:
       return -E_INVAL;

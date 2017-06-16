@@ -24,14 +24,18 @@
 #define E1000_TCTL_COLD 0x003ff000    /* collision distance */
 
 #define E1000_TXD_STAT_DD    0x00000001 /* Descriptor Done */
+#define E1000_TXD_CMD_EOP    0x01000000 /* End of Packet */
+#define E1000_TXD_CMD_RS     0x08000000 /* Report Status */
 
 #include <inc/string.h>
+#include <inc/error.h>
 #include <kern/pci.h>
 #include <kern/pmap.h>
 
 uint32_t *volatile e1000;
 
 int e1000_attach(struct pci_func *f);
+int e1000_transmit(char *data, int len);
 /* Transmit Descriptor */
 struct e1000_tx_desc {
   uint64_t buffer_addr;       /* Address of the descriptor's data buffer */
