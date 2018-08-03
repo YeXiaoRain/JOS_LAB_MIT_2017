@@ -9,7 +9,7 @@ lab4 抢占式多任务
 
 你将在本lab中实现一个用户态 多个同时运行的程序 的抢占式多任务
 
-* part A 需要支持多处理器/多核, 实现round-robin循环调度, 和一个几班的 环境 管理系统调用 (create/destroy 环境 allocate 内存)
+* part A 需要支持多处理器/多核, 实现round-robin循环调度, 和一个基本的 环境 管理系统调用 (create/destroy 环境 allocate 内存)
 
 * part B 需要实现一个类似unix的fork(),可以让用户态的程序 产生一个环境自拷贝
 
@@ -123,7 +123,7 @@ return (void *)(base - size);
 
 ## Application Processor Bootstrap
 
-在启动APs前, BSP应当先手机 多核系统的信息 比如CPU的数量 他们的APIC IDs 以及 LAPIC单元的MMIO 地址. `kern/mpconfig.c`中的`mp_init()`函数 通过读取MP配置表(在BIOS中的)获得了这些信息
+在启动APs前, BSP应当先收集 多核系统的信息 比如CPU的数量 他们的APIC IDs 以及 LAPIC单元的MMIO 地址. `kern/mpconfig.c`中的`mp_init()`函数 通过读取MP配置表(在BIOS中的)获得了这些信息
 
 `kern/init.c`中的`boot_aps()`函数 运行AP bootstrap 进程. APs 以实模式开始执行,和 bootloader started in boot/boot.S相似, 因此`boot_aps()` 复制 AP entry code (kern/mpentry.S) 到一个实模式下addressable 的内存位置. 和bootloader不同的是 我们需要控制 AP的起始执行代码; 我们复制 entry code 到`0x7000 (MPENTRY_PADDR)` 在640KB下方 未使用的位置.
 
@@ -357,7 +357,11 @@ asm volatile ("pause");
 
 最后在`kern/spinlock.h`中去掉`#define USE_TICKET_SPIN_LOCK`的注释 再`make qemu-nox CPUS=4` **然后卡住了😿？？？？**
 
-试了半天把申请锁的`lk->own`改为 `atomic_return_and_add(&(lk->own), 0)`然后可以运行😿！！？？ `lk->own`竟然不够原子,通过`make grade CPUS=4`得到输出
+试了半天把申请锁的`lk->own`改为 `atomic_return_and_add(&(lk->own), 0)`然后可以运行😿！！？？ `lk->own`竟然不够原子,
+
+> 这里可能是因为编译器优化把lk->own这个变量放到寄存器里面了，因此当前线程看不到其它线程的对这个变量的修改，除了上面FAA的解决方法外，另外一个解决办法是在声明own变量的时候加上volatile关键字，告诉编译器不要对own进行优化，每次都从缓存或者主存中读取。 ——[dynamicheart](https://github.com/dynamicheart)
+
+通过`make grade CPUS=4`得到输出
 
 ```
 spinlock_test() succeeded on CPU 1!
@@ -843,7 +847,7 @@ return 0;
 
 然后开始上面提到的毫无技术含量的第二步 dispatch [然而实际情况 虽然这里没有技术含量但还是找到了各种 sjtu 的任务导致的bug(或者说我以前的结构设计得不好)😕 mit的就真的是毫无技术含量的分发就好了]
 
-在实现的过程中我发现原来我用的syscall 有a1~a5,而我在lib/syscall.c中只内联汇编用了了a1~a4,还剩push了的esi没用,但esi用来存返回地址了 根据lab3的这个设计 一个lab3的遗留BUG😿
+在实现的过程中我发现原来我用的syscall 有`a1~a5`,而我在lib/syscall.c中只内联汇编用了了`a1~a4`,还剩push了的esi没用,但esi用来存返回地址了 根据lab3的这个设计 一个lab3的遗留BUG😿
 
 ```
   eax                - syscall number
